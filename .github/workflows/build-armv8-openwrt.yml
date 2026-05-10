@@ -33,14 +33,14 @@ on:
       source:
         description: '选择要编译的源码'
         required: true
-        default: 'immwrt'
+        default: 'lean'
         type: choice
         options: ['immwrt', 'lean']
 
       ip_address:
         description: '设置默认IP地址'
         required: false
-        default: '10.0.0.2'
+        default: '192.168.30.1'
 
       openwrt_board:
         description: '选择设备(CPU)型号'
