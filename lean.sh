@@ -293,10 +293,6 @@ update_install_feeds() {
 add_custom_packages() {
     echo "📦 添加额外插件..."
 
-    # 创建插件保存目录
-    destination_dir="package/A"
-    [ -d "$destination_dir" ] || mkdir -p "$destination_dir"
-
 mkdir -p package/custom
 
 # 科学插件
@@ -419,7 +415,7 @@ apply_custom_settings() {
     [ "$IP_ADDRESS" ] && sed -i '/lan) ipad/s/".*"/"'"$IP_ADDRESS"'"/' package/base-files/*/bin/config_generate
 
     # 更改默认shell为zsh
-    # sed -i 's/\/bin\/ash/\/usr\/bin\/zsh/g' package/base-files/files/etc/passwd
+    sed -i 's/\/bin\/ash/\/usr\/bin\/zsh/g' package/base-files/files/etc/passwd
 
     # ttyd免登录
     sed -i 's|/bin/login|/bin/login -f root|g' feeds/packages/utils/ttyd/files/ttyd.config
