@@ -231,7 +231,7 @@ clone_source_code() {
     echo "OPENWRT_PATH=$PWD" >> $GITHUB_ENV
 
     # 设置luci版本为18.06
-    sed -i '/luci/s/^#//; /luci.git;openwrt/s/^/#/' feeds.conf.default
+    # sed -i '/luci/s/^#//; /luci.git;openwrt/s/^/#/' feeds.conf.default
 }
 
 # 设置环境变量
@@ -383,10 +383,6 @@ apply_custom_settings() {
     sed -i 's/${g}.*/${a}${b}${c}${d}${e}${f}${hydrid}/g' package/lean/autocore/files/x86/autocore
     sed -i "s/'C'/'Core '/g; s/'T '/'Thread '/g" package/lean/autocore/files/x86/autocore
 
-    # 修改版本为编译日期
-    orig_version=$(awk -F "'" '/DISTRIB_REVISION=/{print $2}' package/lean/default-settings/files/zzz-default-settings)
-    sed -i "s/$orig_version/R$(date +%y.%-m.%-d)/g" package/lean/default-settings/files/zzz-default-settings
-
     # 删除主题默认设置
     # find $destination_dir/luci-theme-*/ -type f -name '*luci-theme-*' -exec sed -i '/set luci.main.mediaurlbase/d' {} +
 
@@ -421,17 +417,6 @@ detect_openwrt_arch() {
         powerpc64_*) echo "ppc64" ;; powerpc_*) echo "ppc" ;;
         arc_*) echo "arc" ;; *) echo "unknown" ;;
     esac
-}
-
-# 下载openclash运行内核
-preset_openclash_core() {
-    CPU_ARCH=$(detect_openwrt_arch ".config")
-    if [[ "$CPU_ARCH" =~ ^(amd64|arm64|armv7|armv6|armv5|386|mips64|mips64le|riscv64)$ ]] && grep -q "luci-app-openclash=y" .config; then
-        chmod +x $GITHUB_WORKSPACE/scripts/preset-clash-core.sh
-        $GITHUB_WORKSPACE/scripts/preset-clash-core.sh $CPU_ARCH
-    else
-        return 99
-    fi
 }
 
 # 下载zsh终端工具
