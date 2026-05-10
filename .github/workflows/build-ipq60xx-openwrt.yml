@@ -44,12 +44,12 @@ on:
       ip_address:
         description: '设置默认IP地址'
         required: false
-        default: '10.0.0.1'
+        default: '192.168.30.1'
 
       wifi:
         description: '选择是否编译WIFI'
         required: false
-        default: 'wifi-yes'
+        default: 'wifi-no'
         type: choice
         options: ['wifi-yes', 'wifi-no']
 
