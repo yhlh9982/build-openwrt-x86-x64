@@ -71,11 +71,10 @@ on:
 
 # =========================================================
 # 权限声明
-# 创建/上传/删除 Release 必需
+# 创建/上传 toolchain-cache Release 和固件 Release 必需
 # =========================================================
 permissions:
   contents: write
-  actions: read
 
 jobs:
   build:
@@ -110,6 +109,7 @@ jobs:
           echo "==========================内存信息=========================="
           echo "已安装内存详细信息:"
           sudo lshw -short -C memory | grep GiB || true
+          echo
           echo "==========================硬盘信息=========================="
           echo "硬盘数量: $(ls /dev/sd* 2>/dev/null | grep -v [1-9] | wc -l)"
           df -hT
@@ -163,7 +163,6 @@ jobs:
           sudo mkdir -p /workdir
           sudo mount -o compress=zstd /dev/github/runner /workdir
           sudo chown -R runner:runner /workdir
-
           df -hT
 
       - name: Load Custom Script
@@ -206,6 +205,7 @@ jobs:
       - name: Download DL Packages
         run: |
           cd "$OPENWRT_PATH"
+          # make download -j"$(nproc)"
           make package/download -j"$(nproc)"
 
       - name: Compile Firmware
@@ -227,6 +227,7 @@ jobs:
         if: steps.compile.conclusion == 'success'
         run: |
           df -h
+
           cd "$OPENWRT_PATH"
           du -h --max-depth=1
 
