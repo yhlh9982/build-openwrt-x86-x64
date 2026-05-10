@@ -394,6 +394,22 @@ rm $WORKINGDIR/${LUCIBRANCH}.zip
         -e 's?\.\./\.\./\(lang\|devel\)?$(TOPDIR)/feeds/packages/\1?' \
         -e 's?\.\./\.\./luci.mk?$(TOPDIR)/feeds/luci/luci.mk?'
 
+# 修复Rust本地编译LLVM
+RUST_FILE="feeds/packages/lang/rust/Makefile"
+
+if [ -f "$RUST_FILE" ]; then
+  sed -i 's/download-ci-llvm=true/download-ci-llvm=false/g' "$RUST_FILE"
+  echo "✅ Rust 已设置为本地编译 LLVM"
+else
+  RUST_FILE=$(find feeds/ -type f -name "Makefile" -path "*/lang/rust/*" | head -1)
+  if [ -n "$RUST_FILE" ]; then
+    sed -i 's/download-ci-llvm=true/download-ci-llvm=false/g' "$RUST_FILE"
+    echo "✅ Rust 已设置为本地编译 LLVM (路径: $RUST_FILE)"
+  else
+    echo "⚠️ 未找到 Rust Makefile，跳过"
+  fi
+fi
+
     # 转换插件语言翻译
     for e in $(ls -d $destination_dir/luci-*/po feeds/luci/applications/luci-*/po); do
         if [[ -d $e/zh-cn && ! -d $e/zh_Hans ]]; then
