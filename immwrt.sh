@@ -202,9 +202,6 @@ main() {
     # 更新配置文件
     status_info "更新配置文件" update_config_file
 
-    # 下载openclash运行内核
-    status_info "下载openclash运行内核" preset_openclash_core
-
     # 下载zsh终端工具
     status_info "下载zsh终端工具" preset_shell_tools
 
@@ -220,7 +217,9 @@ clone_source_code() {
     # 设置编译源码与分支
     REPO_URL="https://github.com/immortalwrt/immortalwrt"
     echo "REPO_URL=$REPO_URL" >> $GITHUB_ENV
-    REPO_BRANCH="openwrt-24.10"
+    # REPO_BRANCH="openwrt-24.10"
+    # REPO_BRANCH="openwrt-25.12"
+    REPO_BRANCH="master"    
     echo "REPO_BRANCH=$REPO_BRANCH" >> $GITHUB_ENV
 
     # 拉取编译源码
@@ -299,40 +298,90 @@ update_install_feeds() {
 add_custom_packages() {
     echo "📦 添加额外插件..."
 
-    # 创建插件保存目录
-    destination_dir="package/A"
-    [ -d "$destination_dir" ] || mkdir -p "$destination_dir"
+mkdir -p package/custom
 
-    # 基础插件
-    clone_dir openwrt-23.05 https://github.com/coolsnowwolf/luci luci-app-adguardhome
-    clone_dir https://github.com/sirpdboy/luci-app-ddns-go ddns-go luci-app-ddns-go
-    clone_all https://github.com/sbwml/luci-app-alist
-    clone_all https://github.com/sbwml/luci-app-mosdns
-    git_clone https://github.com/sbwml/packages_lang_golang golang
-    clone_all https://github.com/linkease/istore-ui
-    clone_all https://github.com/linkease/istore luci
-    clone_all https://github.com/brvphoenix/luci-app-wrtbwmon
-    clone_all https://github.com/brvphoenix/wrtbwmon
+# 科学插件
+# Passwall
+rm -rf feeds/packages/net/{xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,trojan-plus,tuic-client,v2ray-plugin,xray-plugin,geoview,shadow-tls}
+git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/custom/passwall-packages
+rm -rf feeds/luci/applications/luci-app-passwall
+git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall.git package/custom/passwall
+git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall2.git package/custom/passwall2
 
-    # 科学上网插件
-    # clone_all https://github.com/fw876/helloworld
-    clone_all https://github.com/Openwrt-Passwall/openwrt-passwall-packages
-    clone_all https://github.com/Openwrt-Passwall/openwrt-passwall
-    clone_all https://github.com/Openwrt-Passwall/openwrt-passwall2
-    clone_dir https://github.com/vernesong/OpenClash luci-app-openclash
-    clone_all https://github.com/nikkinikki-org/OpenWrt-nikki
-    clone_all https://github.com/nikkinikki-org/OpenWrt-momo
-    clone_dir https://github.com/QiuSimons/luci-app-daed daed luci-app-daed
-    git_clone https://github.com/immortalwrt/homeproxy luci-app-homeproxy
+# OpenClash
+rm -rf feeds/luci/applications/luci-app-openclash
+git clone --depth=1 -b dev https://github.com/vernesong/OpenClash.git package/custom/openclash
 
-    # Themes
-    git_clone https://github.com/kiddin9/luci-theme-edge
-    git_clone https://github.com/jerrykuku/luci-theme-argon
-    git_clone https://github.com/jerrykuku/luci-app-argon-config
-    git_clone https://github.com/eamonxg/luci-theme-aurora
-    git_clone https://github.com/eamonxg/luci-app-aurora-config
-    git_clone https://github.com/sirpdboy/luci-theme-kucat
-    git_clone https://github.com/sirpdboy/luci-app-kucat-config
+# Nikki / Momo
+git clone --depth=1 https://github.com/nikkinikki-org/OpenWrt-nikki.git package/custom/nikki
+git clone --depth=1 https://github.com/nikkinikki-org/OpenWrt-momo.git package/custom/momo
+
+# Daed
+git clone --depth=1 -b kix https://github.com/QiuSimons/luci-app-daed.git package/custom/daed
+# git clone --depth=1 -b master https://github.com/QiuSimons/luci-app-daed.git package/custom/daed
+# 添加 vmlinux-btf 模块
+git clone --depth=1 https://github.com/QiuSimons/vmlinux-btf.git package/custom/vmlinux-btf
+
+# SSR+
+git clone --depth=1 https://github.com/fw876/helloworld.git package/custom/ssrp
+
+# 功能插件
+git clone --depth=1 https://github.com/sirpdboy/luci-app-poweroffdevice.git package/custom/poweroffdevice
+git clone --depth=1 https://github.com/isalikai/luci-app-owq-wol.git package/custom/owq-wol
+git clone --depth=1 https://github.com/gdy666/luci-app-lucky.git package/custom/lucky
+git clone --depth=1 https://github.com/sbwml/luci-app-openlist2.git package/custom/openlist2
+
+git clone --depth=1 https://github.com/stackia/rtp2httpd.git package/custom/rtp2httpd
+
+git clone --depth=1 https://github.com/sirpdboy/luci-app-watchdog.git package/custom/watchdog
+git clone --depth=1 https://github.com/sirpdboy/luci-app-taskplan.git package/custom/taskplan
+git clone --depth=1 https://github.com/iv7777/luci-app-authshield.git package/custom/authshield
+git clone --depth=1 https://github.com/destan19/OpenAppFilter.git package/custom/OpenAppFilter
+git clone --depth=1 https://github.com/janvanstiphout/luci-app-accesscontrol.git package/custom/accesscontrol
+
+# VPN
+git clone --depth=1 https://github.com/EasyTier/luci-app-easytier.git package/custom/easytier
+git clone --depth=1 https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community.git package/custom/tailscale-community
+
+# 主题
+git clone --depth=1 -b openwrt-25.12 https://github.com/sbwml/luci-theme-argon.git package/custom/luci-theme-argon
+
+git clone --depth=1 https://github.com/eamonxg/luci-theme-aurora.git package/custom/luci-theme-aurora
+git clone --depth=1 https://github.com/eamonxg/luci-app-aurora-config.git package/custom/luci-app-aurora-config
+
+git clone --depth=1 https://github.com/sirpdboy/luci-theme-kucat.git package/custom/luci-theme-kucat
+git clone --depth=1 https://github.com/sirpdboy/luci-app-kucat-config.git package/custom/luci-app-kucat-config
+
+# 升级替换 mosdns
+# drop mosdns and v2ray-geodata packages that come with the source
+find ./ | grep Makefile | grep v2ray-geodata | xargs rm -f
+find ./ | grep Makefile | grep mosdns | xargs rm -f
+
+git clone https://github.com/sbwml/luci-app-mosdns -b v5 package/custom/mosdns
+git clone https://github.com/sbwml/v2ray-geodata package/custom/v2ray-geodata
+
+rm -rf feeds/packages/lang/golang
+git clone https://github.com/sbwml/packages_lang_golang -b 26.x feeds/packages/lang/golang
+
+# 升级替换 smartdns
+WORKINGDIR="`pwd`/feeds/packages/net/smartdns"
+mkdir $WORKINGDIR -p
+rm $WORKINGDIR/* -fr
+wget https://github.com/pymumu/openwrt-smartdns/archive/master.zip -O $WORKINGDIR/master.zip
+unzip $WORKINGDIR/master.zip -d $WORKINGDIR
+mv $WORKINGDIR/openwrt-smartdns-master/* $WORKINGDIR/
+rmdir $WORKINGDIR/openwrt-smartdns-master
+rm $WORKINGDIR/master.zip
+
+LUCIBRANCH="master" #更换此变量
+WORKINGDIR="`pwd`/feeds/luci/applications/luci-app-smartdns"
+mkdir $WORKINGDIR -p
+rm $WORKINGDIR/* -fr
+wget https://github.com/pymumu/luci-app-smartdns/archive/${LUCIBRANCH}.zip -O $WORKINGDIR/${LUCIBRANCH}.zip
+unzip $WORKINGDIR/${LUCIBRANCH}.zip -d $WORKINGDIR
+mv $WORKINGDIR/luci-app-smartdns-${LUCIBRANCH}/* $WORKINGDIR/
+rmdir $WORKINGDIR/luci-app-smartdns-${LUCIBRANCH}
+rm $WORKINGDIR/${LUCIBRANCH}.zip
 
     # 晶晨宝盒
     clone_all https://github.com/ophub/luci-app-amlogic
@@ -371,23 +420,23 @@ apply_custom_settings() {
     [ "$IP_ADDRESS" ] && sed -i '/lan) ipad/s/".*"/"'"$IP_ADDRESS"'"/' package/base-files/files/bin/config_generate
 
     # 更改默认shell为zsh
-    # sed -i 's/\/bin\/ash/\/usr\/bin\/zsh/g' package/base-files/files/etc/passwd
+    sed -i 's/\/bin\/ash/\/usr\/bin\/zsh/g' package/base-files/files/etc/passwd
 
     # ttyd免登录
     sed -i 's|/bin/login|/bin/login -f root|g' feeds/packages/utils/ttyd/files/ttyd.config
 
     # 设置root用户密码为password
-    sed -i 's/root:::0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.::0:99999:7:::/g' package/base-files/files/etc/shadow
+    # sed -i 's/root:::0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.::0:99999:7:::/g' package/base-files/files/etc/shadow
 
     # 更改argon主题背景
-    cp -f $GITHUB_WORKSPACE/images/bg1.jpg feeds/luci/themes/luci-theme-argon/htdocs/luci-static/argon/img/bg1.jpg
+    # cp -f $GITHUB_WORKSPACE/images/bg1.jpg feeds/luci/themes/luci-theme-argon/htdocs/luci-static/argon/img/bg1.jpg
 
     # 删除主题默认设置
     # find $destination_dir/luci-theme-*/ -type f -name '*luci-theme-*' -exec sed -i '/set luci.main.mediaurlbase/d' {} +
 
     # 设置nlbwmon独立菜单
-    sed -i 's/services\/nlbw/nlbw/g; /path/s/admin\///g' feeds/luci/applications/luci-app-nlbwmon/root/usr/share/luci/menu.d/luci-app-nlbwmon.json
-    sed -i 's/services\///g' feeds/luci/applications/luci-app-nlbwmon/htdocs/luci-static/resources/view/nlbw/config.js
+    # sed -i 's/services\/nlbw/nlbw/g; /path/s/admin\///g' feeds/luci/applications/luci-app-nlbwmon/root/usr/share/luci/menu.d/luci-app-nlbwmon.json
+    # sed -i 's/services\///g' feeds/luci/applications/luci-app-nlbwmon/htdocs/luci-static/resources/view/nlbw/config.js
 
     # 修改qca-nss-drv启动顺序
     drv_path="feeds/nss_packages/qca-nss-drv/files/qca-nss-drv.init"
@@ -430,17 +479,6 @@ detect_openwrt_arch() {
         powerpc64_*) echo "ppc64" ;; powerpc_*) echo "ppc" ;;
         arc_*) echo "arc" ;; *) echo "unknown" ;;
     esac
-}
-
-# 下载openclash运行内核
-preset_openclash_core() {
-    CPU_ARCH=$(detect_openwrt_arch ".config")
-    if [[ "$CPU_ARCH" =~ ^(amd64|arm64|armv7|armv6|armv5|386|mips64|mips64le|riscv64)$ ]] && grep -q "luci-app-openclash=y" .config; then
-        chmod +x $GITHUB_WORKSPACE/scripts/preset-clash-core.sh
-        $GITHUB_WORKSPACE/scripts/preset-clash-core.sh $CPU_ARCH
-    else
-        return 99
-    fi
 }
 
 # 下载zsh终端工具
