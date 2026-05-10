@@ -491,6 +491,9 @@ apply_custom_settings() {
     sed -i 's/${g}.*/${a}${b}${c}${d}${e}${f}${hydrid}/g' package/lean/autocore/files/x86/autocore
     sed -i "s/'C'/'Core '/g; s/'T '/'Thread '/g" package/lean/autocore/files/x86/autocore
 
+    # 切换 6.18内核
+    sed -i 's/^KERNEL_PATCHVER:=.*/KERNEL_PATCHVER:=6.18/' target/linux/x86/Makefile
+    
     # 删除主题默认设置
     # find "$destination_dir"/luci-theme-*/ -type f -name '*luci-theme-*' -exec sed -i '/set luci.main.mediaurlbase/d' {} +
 
