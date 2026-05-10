@@ -1,8 +1,10 @@
 #!/bin/bash
 
-# 打包toolchain目录
+# ============================================
+# 打包toolchain目录 (编译阶段调用)
+# ============================================
 if [[ "$REBUILD_TOOLCHAIN" = 'true' ]]; then
-    cd $OPENWRT_PATH
+    cd "$OPENWRT_PATH"
     sed -i 's/ $(tool.*\/stamp-compile)//' Makefile
     if [[ -d ".ccache" && $(du -s .ccache | cut -f1) -gt 0 ]]; then
         echo "🔍 缓存目录大小:"
@@ -22,8 +24,19 @@ if [[ "$REBUILD_TOOLCHAIN" = 'true' ]]; then
     exit 0
 fi
 
+# ============================================
+# 全局变量与初始化
+# ============================================
+
 # 创建toolchain缓存保存目录
 [ -d "$GITHUB_WORKSPACE/output" ] || mkdir "$GITHUB_WORKSPACE/output"
+
+# 额外插件默认存放目录
+destination_dir="package/custom"
+
+# ============================================
+# 通用工具函数
+# ============================================
 
 # 颜色输出
 color() {
@@ -45,29 +58,29 @@ status_info() {
     "$@"
     exit_code=$?
     [[ "$exit_code" -eq 99 ]] && return 0
-    if [[ -n "$begin_time" ]]; then
-        time_info="==> 用时 $(($(date +%s) - begin_time)) 秒"
-    else
-        time_info=""
-    fi
+    time_info="==> 用时 $(($(date +%s) - begin_time)) 秒"
     if [[ "$exit_code" -eq 0 ]]; then
-        printf "%s %-52s %s %s %s %s %s %s %s\n" \
-        $(color cy "⏳ $task_name") [ $(color cg ✔) ] $(color cw "$time_info")
+        printf "%-64s [ %s ] %s\n" \
+            "$(color cy "⏳ $task_name")" "$(color cg ✔)" "$(color cw "$time_info")"
     else
-        printf "%s %-52s %s %s %s %s %s %s %s\n" \
-        $(color cy "⏳ $task_name") [ $(color cr ✖) ] $(color cw "$time_info")
+        printf "%-64s [ %s ] %s\n" \
+            "$(color cy "⏳ $task_name")" "$(color cr ✖)" "$(color cw "$time_info")"
     fi
 }
 
-# 查找目录
+# 查找目录 (注意: $1 故意不加引号以支持多路径)
 find_dir() {
     find $1 -maxdepth 3 -type d -name "$2" -print -quit 2>/dev/null
 }
 
 # 打印信息
 print_info() {
-    printf "%s %-40s %s %s %s\n" "$1" "$2" "$3" "$4" "$5"
+    printf "%-6s %-40s %s %s %s\n" "$1" "$2" "$3" "$4" "$5"
 }
+
+# ============================================
+# Git 操作辅助函数
+# ============================================
 
 # 添加整个源仓库(git clone)
 git_clone() {
@@ -82,18 +95,18 @@ git_clone() {
     fi
     target_dir="${1:-${repo_url##*/}}"
     git clone -q $branch --depth=1 "$repo_url" "$target_dir" 2>/dev/null || {
-        print_info $(color cr 拉取) "$repo_url" [ $(color cr ✖) ]
+        print_info "$(color cr 拉取)" "$repo_url" "[" "$(color cr ✖)" "]"
         return 1
     }
-    rm -rf $target_dir/{.git*,README*.md,LICENSE}
+    rm -rf "$target_dir"/{.git*,README*.md,LICENSE}
     current_dir=$(find_dir "package/ feeds/ target/" "$target_dir")
     if [[ -d "$current_dir" ]]; then
         rm -rf "$current_dir"
         mv -f "$target_dir" "${current_dir%/*}"
-        print_info $(color cg 替换) "$target_dir" [ $(color cg ✔) ]
+        print_info "$(color cg 替换)" "$target_dir" "[" "$(color cg ✔)" "]"
     else
         mv -f "$target_dir" "$destination_dir"
-        print_info $(color cb 添加) "$target_dir" [ $(color cb ✔) ]
+        print_info "$(color cb 添加)" "$target_dir" "[" "$(color cb ✔)" "]"
     fi
 }
 
@@ -109,27 +122,28 @@ clone_dir() {
         shift 2
     fi
     git clone -q $branch --depth=1 "$repo_url" "$temp_dir" 2>/dev/null || {
-        print_info $(color cr 拉取) "$repo_url" [ $(color cr ✖) ]
+        print_info "$(color cr 拉取)" "$repo_url" "[" "$(color cr ✖)" "]"
         rm -rf "$temp_dir"
         return 1
     }
     local target_dir source_dir current_dir
     for target_dir in "$@"; do
         source_dir=$(find_dir "$temp_dir" "$target_dir")
-        [[ -d "$source_dir" ]] || \
-        source_dir=$(find "$temp_dir" -maxdepth 4 -type d -name "$target_dir" -print -quit) && \
-        [[ -d "$source_dir" ]] || {
-            print_info $(color cr 查找) "$target_dir" [ $(color cr ✖) ]
+        if [[ ! -d "$source_dir" ]]; then
+            source_dir=$(find "$temp_dir" -maxdepth 4 -type d -name "$target_dir" -print -quit)
+        fi
+        if [[ ! -d "$source_dir" ]]; then
+            print_info "$(color cr 查找)" "$target_dir" "[" "$(color cr ✖)" "]"
             continue
-        }
+        fi
         current_dir=$(find_dir "package/ feeds/ target/" "$target_dir")
         if [[ -d "$current_dir" ]]; then
             rm -rf "$current_dir"
             mv -f "$source_dir" "${current_dir%/*}"
-            print_info $(color cg 替换) "$target_dir" [ $(color cg ✔) ]
+            print_info "$(color cg 替换)" "$target_dir" "[" "$(color cg ✔)" "]"
         else
             mv -f "$source_dir" "$destination_dir"
-            print_info $(color cb 添加) "$target_dir" [ $(color cb ✔) ]
+            print_info "$(color cb 添加)" "$target_dir" "[" "$(color cb ✔)" "]"
         fi
     done
     rm -rf "$temp_dir"
@@ -147,7 +161,7 @@ clone_all() {
         shift 2
     fi
     git clone -q $branch --depth=1 "$repo_url" "$temp_dir" 2>/dev/null || {
-        print_info $(color cr 拉取) "$repo_url" [ $(color cr ✖) ]
+        print_info "$(color cr 拉取)" "$repo_url" "[" "$(color cr ✖)" "]"
         rm -rf "$temp_dir"
         return 1
     }
@@ -158,10 +172,10 @@ clone_all() {
             if [[ -d "$current_dir" ]]; then
                 rm -rf "$current_dir"
                 mv -f "$source_dir" "${current_dir%/*}"
-                print_info $(color cg 替换) "$target_dir" [ $(color cg ✔) ]
+                print_info "$(color cg 替换)" "$target_dir" "[" "$(color cg ✔)" "]"
             else
                 mv -f "$source_dir" "$destination_dir"
-                print_info $(color cb 添加) "$target_dir" [ $(color cb ✔) ]
+                print_info "$(color cb 添加)" "$target_dir" "[" "$(color cb ✔)" "]"
             fi
         done < <(find "$1" -maxdepth 1 -mindepth 1 -type d ! -name '.*')
     }
@@ -169,14 +183,19 @@ clone_all() {
         process_dir "$temp_dir"
     else
         for dir_name in "$@"; do
-            [[ -d "$temp_dir/$dir_name" ]] && process_dir "$temp_dir/$dir_name" || \
-            print_info $(color cr 目录) "$dir_name" [ $(color cr ✖) ]
+            if [[ -d "$temp_dir/$dir_name" ]]; then
+                process_dir "$temp_dir/$dir_name"
+            else
+                print_info "$(color cr 目录)" "$dir_name" "[" "$(color cr ✖)" "]"
+            fi
         done
     fi
     rm -rf "$temp_dir"
 }
 
+# ============================================
 # 主流程
+# ============================================
 main() {
     echo "$(color cp "🚀 开始运行自定义脚本")"
     echo "========================================"
@@ -212,20 +231,25 @@ main() {
     echo "========================================"
 }
 
+# ============================================
+# 任务函数
+# ============================================
+
 # 拉取编译源码
 clone_source_code() {
     # 设置编译源码与分支
     REPO_URL="https://github.com/coolsnowwolf/lede"
-    echo "REPO_URL=$REPO_URL" >> $GITHUB_ENV
+    echo "REPO_URL=$REPO_URL" >> "$GITHUB_ENV"
     REPO_BRANCH="master"
-    echo "REPO_BRANCH=$REPO_BRANCH" >> $GITHUB_ENV
+    echo "REPO_BRANCH=$REPO_BRANCH" >> "$GITHUB_ENV"
 
     # 拉取编译源码
     cd /workdir
     git clone -q -b "$REPO_BRANCH" --single-branch "$REPO_URL" openwrt
-    ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+    ln -sf /workdir/openwrt "$GITHUB_WORKSPACE/openwrt"
     [ -d openwrt ] && cd openwrt || exit
-    echo "OPENWRT_PATH=$PWD" >> $GITHUB_ENV
+    echo "OPENWRT_PATH=$PWD" >> "$GITHUB_ENV"
+}
 
 # 设置环境变量
 set_variable_values() {
@@ -233,52 +257,57 @@ set_variable_values() {
 
     # 源仓库与分支
     SOURCE_REPO=$(basename "$REPO_URL")
-    echo "SOURCE_REPO=$SOURCE_REPO" >> $GITHUB_ENV
-    echo "LITE_BRANCH=${REPO_BRANCH#*-}" >> $GITHUB_ENV
+    echo "SOURCE_REPO=$SOURCE_REPO" >> "$GITHUB_ENV"
+    echo "LITE_BRANCH=${REPO_BRANCH#*-}" >> "$GITHUB_ENV"
 
     # 平台架构
     TARGET_NAME=$(grep -oP "^CONFIG_TARGET_\K[a-z0-9]+(?==y)" "$GITHUB_WORKSPACE/$CONFIG_FILE")
     SUBTARGET_NAME=$(grep -oP "^CONFIG_TARGET_${TARGET_NAME}_\K[a-z0-9]+(?==y)" "$GITHUB_WORKSPACE/$CONFIG_FILE")
     DEVICE_TARGET="$TARGET_NAME-$SUBTARGET_NAME"
-    echo "DEVICE_TARGET=$DEVICE_TARGET" >> $GITHUB_ENV
+    echo "DEVICE_TARGET=$DEVICE_TARGET" >> "$GITHUB_ENV"
 
     # 内核版本
     KERNEL=$(grep -oP 'KERNEL_PATCHVER:=\K[\d\.]+' "target/linux/$TARGET_NAME/Makefile")
     KERNEL_VERSION=$(grep -oP 'LINUX_KERNEL_HASH-\K[\d\.]+' "include/kernel-$KERNEL")
-    echo "KERNEL_VERSION=$KERNEL_VERSION" >> $GITHUB_ENV
+    echo "KERNEL_VERSION=$KERNEL_VERSION" >> "$GITHUB_ENV"
 
     # toolchain缓存文件名
     TOOLS_HASH=$(git log -1 --pretty=format:"%h" tools toolchain)
     CACHE_NAME="$SOURCE_REPO-${REPO_BRANCH#*-}-$DEVICE_TARGET-cache-$TOOLS_HASH"
-    echo "CACHE_NAME=$CACHE_NAME" >> $GITHUB_ENV
+    echo "CACHE_NAME=$CACHE_NAME" >> "$GITHUB_ENV"
 
     # 源码更新信息
-    echo "COMMIT_AUTHOR=$(git show -s --date=short --format="作者: %an")" >> $GITHUB_ENV
-    echo "COMMIT_DATE=$(git show -s --date=short --format="时间: %ci")" >> $GITHUB_ENV
-    echo "COMMIT_MESSAGE=$(git show -s --date=short --format="内容: %s")" >> $GITHUB_ENV
-    echo "COMMIT_HASH=$(git show -s --date=short --format="hash: %H")" >> $GITHUB_ENV
+    echo "COMMIT_AUTHOR=$(git show -s --date=short --format="作者: %an")" >> "$GITHUB_ENV"
+    echo "COMMIT_DATE=$(git show -s --date=short --format="时间: %ci")" >> "$GITHUB_ENV"
+    echo "COMMIT_MESSAGE=$(git show -s --date=short --format="内容: %s")" >> "$GITHUB_ENV"
+    echo "COMMIT_HASH=$(git show -s --date=short --format="hash: %H")" >> "$GITHUB_ENV"
+
+    # 检测编译架构
+    CPU_ARCH=$(detect_openwrt_arch "$GITHUB_WORKSPACE/$CONFIG_FILE")
+    echo "CPU_ARCH=$CPU_ARCH" >> "$GITHUB_ENV"
 }
 
 # 下载部署toolchain缓存
 download_toolchain() {
-    local cache_xa cache_xc
+    local cache_xa cache_xc tzst_file
     if [[ "$TOOLCHAIN" = 'true' ]]; then
         cache_xa=$(curl -sL "https://api.github.com/repos/$GITHUB_REPOSITORY/releases" | awk -F '"' '/download_url/{print $4}' | grep "$CACHE_NAME")
         cache_xc=$(curl -sL "https://api.github.com/repos/haiibo/toolchain-cache/releases" | awk -F '"' '/download_url/{print $4}' | grep "$CACHE_NAME")
         if [[ "$cache_xa" || "$cache_xc" ]]; then
             wget -qc -t=3 "${cache_xa:-$cache_xc}"
-            if [ -e *.tzst ]; then
-                tar -I unzstd -xf *.tzst || tar -xf *.tzst
-                [ "$cache_xa" ] || (cp *.tzst $GITHUB_WORKSPACE/output && echo "OUTPUT_RELEASE=true" >> $GITHUB_ENV)
-                [ -d staging_dir ] && sed -i 's/ $(tool.*\/stamp-compile)//' Makefile
+            tzst_file=$(ls *.tzst 2>/dev/null | head -1)
+            if [[ -n "$tzst_file" ]]; then
+                tar -I unzstd -xf "$tzst_file" || tar -xf "$tzst_file"
+                [[ "$cache_xa" ]] || (cp "$tzst_file" "$GITHUB_WORKSPACE/output" && echo "OUTPUT_RELEASE=true" >> "$GITHUB_ENV")
+                [[ -d staging_dir ]] && sed -i 's/ $(tool.*\/stamp-compile)//' Makefile
             fi
         else
-            echo "REBUILD_TOOLCHAIN=true" >> $GITHUB_ENV
+            echo "REBUILD_TOOLCHAIN=true" >> "$GITHUB_ENV"
             echo "⚠️ 未找到最新工具链"
             return 99
         fi
     else
-        echo "REBUILD_TOOLCHAIN=true" >> $GITHUB_ENV
+        echo "REBUILD_TOOLCHAIN=true" >> "$GITHUB_ENV"
         return 99
     fi
 }
@@ -292,133 +321,149 @@ update_install_feeds() {
 # 添加额外插件
 add_custom_packages() {
     echo "📦 添加额外插件..."
+    mkdir -p "$destination_dir"
 
-mkdir -p package/custom
+    # ------------------------------------------
+    # 统一清理源码自带的冲突包
+    # ------------------------------------------
+    # 清理 feeds 中与科学插件/mosdns 冲突的包
+    rm -rf feeds/packages/net/{xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,trojan-plus,tuic-client,v2ray-plugin,xray-plugin,geoview,shadow-tls}
+    rm -rf feeds/luci/applications/{luci-app-passwall,luci-app-openclash}
 
-# 科学插件
-# Passwall
-rm -rf feeds/packages/net/{xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,trojan-plus,tuic-client,v2ray-plugin,xray-plugin,geoview,shadow-tls}
-git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/custom/passwall-packages
-rm -rf feeds/luci/applications/luci-app-passwall
-git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall.git package/custom/passwall
-git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall2.git package/custom/passwall2
+    # 清理 mosdns 残留 (feeds install 可能在 package/feeds/ 下产生副本)
+    find ./ \( -path "*/mosdns/Makefile" -o -path "*/v2ray-geodata/Makefile" \) -delete 2>/dev/null
 
-# OpenClash
-rm -rf feeds/luci/applications/luci-app-openclash
-git clone --depth=1 -b dev https://github.com/vernesong/OpenClash.git package/custom/openclash
+    # ------------------------------------------
+    # 科学插件
+    # ------------------------------------------
+    # Passwall
+    git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git "$destination_dir/passwall-packages"
+    git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall.git "$destination_dir/passwall"
+    git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall2.git "$destination_dir/passwall2"
 
-# Nikki / Momo
-git clone --depth=1 https://github.com/nikkinikki-org/OpenWrt-nikki.git package/custom/nikki
-git clone --depth=1 https://github.com/nikkinikki-org/OpenWrt-momo.git package/custom/momo
+    # OpenClash
+    git clone --depth=1 -b dev https://github.com/vernesong/OpenClash.git "$destination_dir/openclash"
 
-# Daed
-git clone --depth=1 -b kix https://github.com/QiuSimons/luci-app-daed.git package/custom/daed
-# git clone --depth=1 -b master https://github.com/QiuSimons/luci-app-daed.git package/custom/daed
-# 添加 vmlinux-btf 模块
-git clone --depth=1 https://github.com/QiuSimons/vmlinux-btf.git package/custom/vmlinux-btf
+    # Nikki / Momo
+    git clone --depth=1 https://github.com/nikkinikki-org/OpenWrt-nikki.git "$destination_dir/nikki"
+    git clone --depth=1 https://github.com/nikkinikki-org/OpenWrt-momo.git "$destination_dir/momo"
 
-# SSR+
-git clone --depth=1 https://github.com/fw876/helloworld.git package/custom/ssrp
+    # Daed + vmlinux-btf
+    git clone --depth=1 -b kix https://github.com/QiuSimons/luci-app-daed.git "$destination_dir/daed"
+    # git clone --depth=1 -b master https://github.com/QiuSimons/luci-app-daed.git "$destination_dir/daed"
+    git clone --depth=1 https://github.com/QiuSimons/vmlinux-btf.git "$destination_dir/vmlinux-btf"
 
-# 功能插件
-git clone --depth=1 https://github.com/sirpdboy/luci-app-poweroffdevice.git package/custom/poweroffdevice
-git clone --depth=1 https://github.com/isalikai/luci-app-owq-wol.git package/custom/owq-wol
-git clone --depth=1 https://github.com/gdy666/luci-app-lucky.git package/custom/lucky
-git clone --depth=1 https://github.com/sbwml/luci-app-openlist2.git package/custom/openlist2
+    # SSR+
+    git clone --depth=1 https://github.com/fw876/helloworld.git "$destination_dir/ssrp"
 
-git clone --depth=1 https://github.com/stackia/rtp2httpd.git package/custom/rtp2httpd
+    # ------------------------------------------
+    # 功能插件
+    # ------------------------------------------
+    git clone --depth=1 https://github.com/sirpdboy/luci-app-poweroffdevice.git "$destination_dir/poweroffdevice"
+    git clone --depth=1 https://github.com/isalikai/luci-app-owq-wol.git "$destination_dir/owq-wol"
+    git clone --depth=1 https://github.com/gdy666/luci-app-lucky.git "$destination_dir/lucky"
+    git clone --depth=1 https://github.com/sbwml/luci-app-openlist2.git "$destination_dir/openlist2"
+    git clone --depth=1 https://github.com/stackia/rtp2httpd.git "$destination_dir/rtp2httpd"
+    git clone --depth=1 https://github.com/sirpdboy/luci-app-watchdog.git "$destination_dir/watchdog"
+    git clone --depth=1 https://github.com/sirpdboy/luci-app-taskplan.git "$destination_dir/taskplan"
+    git clone --depth=1 https://github.com/iv7777/luci-app-authshield.git "$destination_dir/authshield"
+    git clone --depth=1 https://github.com/destan19/OpenAppFilter.git "$destination_dir/OpenAppFilter"
+    git clone --depth=1 https://github.com/janvanstiphout/luci-app-accesscontrol.git "$destination_dir/accesscontrol"
 
-git clone --depth=1 https://github.com/sirpdboy/luci-app-watchdog.git package/custom/watchdog
-git clone --depth=1 https://github.com/sirpdboy/luci-app-taskplan.git package/custom/taskplan
-git clone --depth=1 https://github.com/iv7777/luci-app-authshield.git package/custom/authshield
-git clone --depth=1 https://github.com/destan19/OpenAppFilter.git package/custom/OpenAppFilter
-git clone --depth=1 https://github.com/janvanstiphout/luci-app-accesscontrol.git package/custom/accesscontrol
+    # ------------------------------------------
+    # MosDNS & v2ray-geodata (升级替换)
+    # ------------------------------------------
+    git clone --depth=1 -b v5 https://github.com/sbwml/luci-app-mosdns.git "$destination_dir/mosdns"
+    git clone --depth=1 https://github.com/sbwml/v2ray-geodata.git "$destination_dir/v2ray-geodata"
 
-# 升级替换 mosdns
-# drop mosdns and v2ray-geodata packages that come with the source
-find ./ | grep Makefile | grep v2ray-geodata | xargs rm -f
-find ./ | grep Makefile | grep mosdns | xargs rm -f
+    # ------------------------------------------
+    # Golang 工具链 (升级替换)
+    # ------------------------------------------
+    rm -rf feeds/packages/lang/golang
+    git clone --depth=1 -b 26.x https://github.com/sbwml/packages_lang_golang.git feeds/packages/lang/golang
 
-git clone https://github.com/sbwml/luci-app-mosdns -b v5 package/custom/mosdns
-git clone https://github.com/sbwml/v2ray-geodata package/custom/v2ray-geodata
+    # ------------------------------------------
+    # SmartDNS (升级替换)
+    # ------------------------------------------
+    local WORKINGDIR LUCIBRANCH
 
-rm -rf feeds/packages/lang/golang
-git clone https://github.com/sbwml/packages_lang_golang -b 26.x feeds/packages/lang/golang
+    WORKINGDIR="$(pwd)/feeds/packages/net/smartdns"
+    mkdir -p "$WORKINGDIR"
+    rm -rf "$WORKINGDIR"/*
+    wget -q https://github.com/pymumu/openwrt-smartdns/archive/master.zip -O "$WORKINGDIR/master.zip"
+    unzip -q "$WORKINGDIR/master.zip" -d "$WORKINGDIR"
+    mv "$WORKINGDIR"/openwrt-smartdns-master/* "$WORKINGDIR"/
+    rmdir "$WORKINGDIR/openwrt-smartdns-master"
+    rm -f "$WORKINGDIR/master.zip"
 
-# 升级替换 smartdns
-WORKINGDIR="`pwd`/feeds/packages/net/smartdns"
-mkdir $WORKINGDIR -p
-rm $WORKINGDIR/* -fr
-wget https://github.com/pymumu/openwrt-smartdns/archive/master.zip -O $WORKINGDIR/master.zip
-unzip $WORKINGDIR/master.zip -d $WORKINGDIR
-mv $WORKINGDIR/openwrt-smartdns-master/* $WORKINGDIR/
-rmdir $WORKINGDIR/openwrt-smartdns-master
-rm $WORKINGDIR/master.zip
+    LUCIBRANCH="master"
+    WORKINGDIR="$(pwd)/feeds/luci/applications/luci-app-smartdns"
+    mkdir -p "$WORKINGDIR"
+    rm -rf "$WORKINGDIR"/*
+    wget -q "https://github.com/pymumu/luci-app-smartdns/archive/${LUCIBRANCH}.zip" -O "$WORKINGDIR/${LUCIBRANCH}.zip"
+    unzip -q "$WORKINGDIR/${LUCIBRANCH}.zip" -d "$WORKINGDIR"
+    mv "$WORKINGDIR"/luci-app-smartdns-${LUCIBRANCH}/* "$WORKINGDIR"/
+    rmdir "$WORKINGDIR/luci-app-smartdns-${LUCIBRANCH}"
+    rm -f "$WORKINGDIR/${LUCIBRANCH}.zip"
 
-LUCIBRANCH="master" #更换此变量
-WORKINGDIR="`pwd`/feeds/luci/applications/luci-app-smartdns"
-mkdir $WORKINGDIR -p
-rm $WORKINGDIR/* -fr
-wget https://github.com/pymumu/luci-app-smartdns/archive/${LUCIBRANCH}.zip -O $WORKINGDIR/${LUCIBRANCH}.zip
-unzip $WORKINGDIR/${LUCIBRANCH}.zip -d $WORKINGDIR
-mv $WORKINGDIR/luci-app-smartdns-${LUCIBRANCH}/* $WORKINGDIR/
-rmdir $WORKINGDIR/luci-app-smartdns-${LUCIBRANCH}
-rm $WORKINGDIR/${LUCIBRANCH}.zip
+    # ------------------------------------------
+    # VPN
+    # ------------------------------------------
+    git clone --depth=1 https://github.com/EasyTier/luci-app-easytier.git "$destination_dir/easytier"
+    git clone --depth=1 https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community.git "$destination_dir/tailscale-community"
 
-# VPN
-git clone --depth=1 https://github.com/EasyTier/luci-app-easytier.git package/custom/easytier
-git clone --depth=1 https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community.git package/custom/tailscale-community
+    # ------------------------------------------
+    # 主题
+    # ------------------------------------------
+    git clone --depth=1 -b openwrt-25.12 https://github.com/sbwml/luci-theme-argon.git "$destination_dir/luci-theme-argon"
+    git clone --depth=1 https://github.com/eamonxg/luci-theme-aurora.git "$destination_dir/luci-theme-aurora"
+    git clone --depth=1 https://github.com/eamonxg/luci-app-aurora-config.git "$destination_dir/luci-app-aurora-config"
+    git clone --depth=1 https://github.com/sirpdboy/luci-theme-kucat.git "$destination_dir/luci-theme-kucat"
+    git clone --depth=1 https://github.com/sirpdboy/luci-app-kucat-config.git "$destination_dir/luci-app-kucat-config"
 
-# 主题
-git clone --depth=1 -b openwrt-25.12 https://github.com/sbwml/luci-theme-argon.git package/custom/luci-theme-argon
-
-git clone --depth=1 https://github.com/eamonxg/luci-theme-aurora.git package/custom/luci-theme-aurora
-git clone --depth=1 https://github.com/eamonxg/luci-app-aurora-config.git package/custom/luci-app-aurora-config
-
-git clone --depth=1 https://github.com/sirpdboy/luci-theme-kucat.git package/custom/luci-theme-kucat
-git clone --depth=1 https://github.com/sirpdboy/luci-app-kucat-config.git package/custom/luci-app-kucat-config
-
+    # ------------------------------------------
     # 晶晨宝盒
+    # ------------------------------------------
     clone_all https://github.com/ophub/luci-app-amlogic
-    sed -i "s|firmware_repo.*|firmware_repo 'https://github.com/$GITHUB_REPOSITORY'|g" $destination_dir/luci-app-amlogic/root/etc/config/amlogic
-    # sed -i "s|kernel_path.*|kernel_path 'https://github.com/ophub/kernel'|g" $destination_dir/luci-app-amlogic/root/etc/config/amlogic
-    sed -i "s|ARMv8|$RELEASE_TAG|g" $destination_dir/luci-app-amlogic/root/etc/config/amlogic
+    sed -i "s|firmware_repo.*|firmware_repo 'https://github.com/$GITHUB_REPOSITORY'|g" "$destination_dir/luci-app-amlogic/root/etc/config/amlogic"
+    # sed -i "s|kernel_path.*|kernel_path 'https://github.com/ophub/kernel'|g" "$destination_dir/luci-app-amlogic/root/etc/config/amlogic"
+    sed -i "s|ARMv8|$RELEASE_TAG|g" "$destination_dir/luci-app-amlogic/root/etc/config/amlogic"
 
-    # 修复Makefile路径
+    # ------------------------------------------
+    # 修复 Makefile 路径引用
+    # ------------------------------------------
     find "$destination_dir" -type f -name "Makefile" | xargs sed -i \
         -e 's?\.\./\.\./\(lang\|devel\)?$(TOPDIR)/feeds/packages/\1?' \
         -e 's?\.\./\.\./luci.mk?$(TOPDIR)/feeds/luci/luci.mk?'
 
-# 修复Rust本地编译LLVM
-RUST_FILE="feeds/packages/lang/rust/Makefile"
+    # ------------------------------------------
+    # 修复 Rust 本地编译 LLVM
+    # ------------------------------------------
+    local RUST_FILE="feeds/packages/lang/rust/Makefile"
+    if [[ ! -f "$RUST_FILE" ]]; then
+        RUST_FILE=$(find feeds/ -type f -name "Makefile" -path "*/lang/rust/*" | head -1)
+    fi
+    if [[ -n "$RUST_FILE" && -f "$RUST_FILE" ]]; then
+        sed -i 's/download-ci-llvm=true/download-ci-llvm=false/g' "$RUST_FILE"
+        echo "✅ Rust 已设置为本地编译 LLVM (路径: $RUST_FILE)"
+    else
+        echo "⚠️ 未找到 Rust Makefile，跳过"
+    fi
 
-if [ -f "$RUST_FILE" ]; then
-  sed -i 's/download-ci-llvm=true/download-ci-llvm=false/g' "$RUST_FILE"
-  echo "✅ Rust 已设置为本地编译 LLVM"
-else
-  RUST_FILE=$(find feeds/ -type f -name "Makefile" -path "*/lang/rust/*" | head -1)
-  if [ -n "$RUST_FILE" ]; then
-    sed -i 's/download-ci-llvm=true/download-ci-llvm=false/g' "$RUST_FILE"
-    echo "✅ Rust 已设置为本地编译 LLVM (路径: $RUST_FILE)"
-  else
-    echo "⚠️ 未找到 Rust Makefile，跳过"
-  fi
-fi
-
-    # 转换插件语言翻译
-    for e in $(ls -d $destination_dir/luci-*/po feeds/luci/applications/luci-*/po); do
-        if [[ -d $e/zh-cn && ! -d $e/zh_Hans ]]; then
-            ln -s zh-cn $e/zh_Hans 2>/dev/null
-        elif [[ -d $e/zh_Hans && ! -d $e/zh-cn ]]; then
-            ln -s zh_Hans $e/zh-cn 2>/dev/null
+    # ------------------------------------------
+    # 转换插件语言翻译 (zh-cn ↔ zh_Hans)
+    # ------------------------------------------
+    for e in $(ls -d "$destination_dir"/luci-*/po feeds/luci/applications/luci-*/po 2>/dev/null); do
+        if [[ -d "$e/zh-cn" && ! -d "$e/zh_Hans" ]]; then
+            ln -s zh-cn "$e/zh_Hans" 2>/dev/null
+        elif [[ -d "$e/zh_Hans" && ! -d "$e/zh-cn" ]]; then
+            ln -s zh_Hans "$e/zh-cn" 2>/dev/null
         fi
     done
 }
 
 # 加载个人设置
 apply_custom_settings() {
-    local orig_version
-
     [ -e "$GITHUB_WORKSPACE/files" ] && mv "$GITHUB_WORKSPACE/files" files
 
     # 设置固件rootfs大小
@@ -437,8 +482,8 @@ apply_custom_settings() {
     # sed -i 's|/bin/login|/bin/login -f root|g' feeds/packages/utils/ttyd/files/ttyd.config
 
     # 设置root用户密码为空
-    # sed -i '/CYXluq4wUazHjmCDBCqXF/d' package/lean/default-settings/files/zzz-default-settings 
-    
+    # sed -i '/CYXluq4wUazHjmCDBCqXF/d' package/lean/default-settings/files/zzz-default-settings
+
     # 更改argon主题背景
     # cp -f $GITHUB_WORKSPACE/images/bg1.jpg feeds/luci/themes/luci-theme-argon/htdocs/luci-static/argon/img/bg1.jpg
 
@@ -447,7 +492,7 @@ apply_custom_settings() {
     sed -i "s/'C'/'Core '/g; s/'T '/'Thread '/g" package/lean/autocore/files/x86/autocore
 
     # 删除主题默认设置
-    # find $destination_dir/luci-theme-*/ -type f -name '*luci-theme-*' -exec sed -i '/set luci.main.mediaurlbase/d' {} +
+    # find "$destination_dir"/luci-theme-*/ -type f -name '*luci-theme-*' -exec sed -i '/set luci.main.mediaurlbase/d' {} +
 
     # 调整docker到"服务"菜单
     # sed -i 's/"admin"/"admin", "services"/g' feeds/luci/applications/luci-app-dockerman/luasrc/controller/*.lua
@@ -485,13 +530,14 @@ detect_openwrt_arch() {
 # 下载zsh终端工具
 preset_shell_tools() {
     if grep -q "zsh=y" .config; then
-        chmod +x $GITHUB_WORKSPACE/scripts/preset-terminal-tools.sh
-        $GITHUB_WORKSPACE/scripts/preset-terminal-tools.sh
+        chmod +x "$GITHUB_WORKSPACE/scripts/preset-terminal-tools.sh"
+        "$GITHUB_WORKSPACE/scripts/preset-terminal-tools.sh"
     else
         return 99
     fi
 }
 
+# 显示编译信息
 show_build_info() {
     echo -e "$(color cy "📊 当前编译信息")"
     echo "========================================"
@@ -503,4 +549,7 @@ show_build_info() {
     echo "========================================"
 }
 
+# ============================================
+# 入口
+# ============================================
 main "$@"
