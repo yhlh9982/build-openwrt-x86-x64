@@ -170,6 +170,23 @@ jobs:
           chmod +x "$DIY_SCRIPT"
           "./$DIY_SCRIPT"
 
+      - name: Fix OpenWrt ccache
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache
+
+          cd "$OPENWRT_PATH"
+
+          mkdir -p staging_dir/host/bin
+
+          if [ ! -e staging_dir/host/bin/ccache ]; then
+            ln -sf "$(command -v ccache)" staging_dir/host/bin/ccache
+          fi
+
+          echo "ccache 路径检查:"
+          ls -l staging_dir/host/bin/ccache
+          staging_dir/host/bin/ccache --version || true
+
       - name: Compile Toolchain
         if: env.REBUILD_TOOLCHAIN == 'true'
         id: toolchain
@@ -201,23 +218,6 @@ jobs:
           tag_name: toolchain-cache
           files: output/*
           body: OpenWrt 工具链缓存
-
-      - name: Fix OpenWrt ccache
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ccache
-
-          cd "$OPENWRT_PATH"
-
-          mkdir -p staging_dir/host/bin
-
-          if [ ! -e staging_dir/host/bin/ccache ]; then
-            ln -sf "$(command -v ccache)" staging_dir/host/bin/ccache
-          fi
-
-          echo "ccache 路径检查:"
-          ls -l staging_dir/host/bin/ccache
-          staging_dir/host/bin/ccache --version || true
 
       - name: Download DL Packages
         run: |
